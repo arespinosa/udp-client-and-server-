@@ -11,7 +11,7 @@ int main() {
 
     struct packet_headers {
         int seq_num;
-        time_t time_stamp;
+        double time_stamp;
     };
 
     int sockfd;
@@ -23,6 +23,7 @@ int main() {
     int B;
     int seconds_Delay;
     char s_ipAddy[20]; 
+    double microseconds;
     
     /**
      * Accepting user input for:
@@ -44,12 +45,15 @@ int main() {
     scanf("%d", &seconds_Delay);
     printf("Inter-packet delay is %d seconds \n", seconds_Delay);
 
-    printf("Enter the IP Address:");
+    printf("Enter the IP Address: ");
     scanf("%s", s_ipAddy);
     printf("Server IP Address: %s \n", s_ipAddy);
 
     int packet_size = sizeof(struct packet_headers) + B;
     char buffer[packet_size];
+
+   
+    // Fill payload (just example data)
     memset(buffer, 0, packet_size);
 
     // Create Socket with Af_Inet + Datagram 
@@ -75,7 +79,8 @@ int main() {
         // Allocate packet with payload
         struct timeval tv;
         gettimeofday(&tv, NULL);
-        double currentTime = tv.tv_sec + tv.tv_usec / 1e6;
+        microseconds = tv.tv_usec / 1000000.00;
+        double currentTime = tv.tv_sec + microseconds;
 
 
         packet.seq_num = i;
@@ -93,7 +98,8 @@ int main() {
         sleep(seconds_Delay);
         //After receiving the response, recording the RTT 
         gettimeofday(&tv, NULL);
-        double recvTime = tv.tv_sec + tv.tv_usec / 1e6;
+        microseconds = tv.tv_usec / 1000000.00;
+        double recvTime = tv.tv_sec + microseconds;
 
         double rtt = (recvTime - packet.time_stamp) * 1000.0;
 

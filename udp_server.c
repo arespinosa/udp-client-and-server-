@@ -30,6 +30,7 @@ int main()  {
     socklen_t clientLen;
     struct packet_headers packet;
     char buffer[1024] = {0};
+    double microseconds;
 
     // 1. Creating socket with AF_INET + Datagram 
     server_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -69,21 +70,23 @@ int main()  {
             exit(EXIT_FAILURE);
         }
 
+        struct packet_headers packet = *(struct packet_headers *)buffer;
+
         //If we have finished sending all packets from client, breaking while loop
         if(packet.seq_num == -1){
             indefinitely = 0;
             break;
         }
-
-        struct packet_headers packet = *(struct packet_headers *)buffer;
+        
         struct timeval tv;
         gettimeofday(&tv, NULL);
-        double timeReceived = tv.tv_sec + tv.tv_usec / 1e6;                     
+        microseconds = tv.tv_usec / 1000000.00;
+        double timeReceived = tv.tv_sec + microseconds;                     
         // Computing the one-way delay 
         
-        double OWD = (timeReceived - packet.time_stamp);
+        double OWD = (timeReceived - packet.time_stamp) * 1000;
         printf("Current seq number %d \n", packet.seq_num);
-        printf("One way delay for packet : %.3f \n", OWD);
+        printf("One way delay for packet : %.3f ms\n", OWD);
         printf("--------- \n");
 
     
