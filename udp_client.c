@@ -9,6 +9,7 @@
 #define PORT 8080 // Port number
 int main() {
 
+    // Creating the struct packet headers 
     struct packet_headers {
         int seq_num;
         double time_stamp;
@@ -23,6 +24,8 @@ int main() {
     int B;
     int seconds_Delay;
     char s_ipAddy[20]; 
+    
+    struct timeval tv;
     double microseconds;
     
     /**
@@ -53,7 +56,7 @@ int main() {
     char buffer[packet_size];
 
    
-    // Fill payload (just example data)
+    // Filling the buffer with 0s and the byte size + packet headers size 
     memset(buffer, 0, packet_size);
 
     // Create Socket with Af_Inet + Datagram 
@@ -75,39 +78,47 @@ int main() {
 
     double total_rtt = 0.0;
 
+    // Iterating through the amount of packets we're going to send 
     for (int i = 0; i < N; i++) {
-        // Allocate packet with payload
-        struct timeval tv;
         gettimeofday(&tv, NULL);
         microseconds = tv.tv_usec / 1000000.00;
         double currentTime = tv.tv_sec + microseconds;
 
-
         packet.seq_num = i;
         packet.time_stamp = currentTime;
-    
-        // Send packet
+
+        sleep(seconds_Delay);
+
+        // Sending packet
         sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen);
-        // Receive echo
+        // Receiving echo back from server
         int n = recvfrom(sockfd, &recievedPacket, sizeof(recievedPacket), 0, (struct sockaddr *)&server_addr, &AddrLen);
         
-        //FIXME: Does this indicate packet loss? 
         if (n < 0) {
             perror("recvfrom failed");
         }
-        sleep(seconds_Delay);
-        //After receiving the response, recording the RTT 
+
+        if(recievedPacket.seq_num != i){
+            printf("Packet %d was lost", i);
+            exit(EXIT_FAILURE);
+        }
+
         gettimeofday(&tv, NULL);
         microseconds = tv.tv_usec / 1000000.00;
-        double recvTime = tv.tv_sec + microseconds;
 
+        double recvTime = tv.tv_sec + microseconds;
+        // Calculating the round trip time and multiplying by 1000 to get it in the form of ms
         double rtt = (recvTime - packet.time_stamp) * 1000.0;
 
-
         printf("Packet %d has RTT = %.3f ms\n", recievedPacket.seq_num, rtt);
-
         total_rtt += rtt;
     }
+
+    // Sending a packet with -1 to let the server know we are done sending N amount of packets and 
+    // allow the server to compute the avg. 
+    packet.seq_num = -1;
+
+    sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen);
 
     // After the end of the run, printing the average RTT 
     double avg_rtt = total_rtt / N;
@@ -118,4 +129,3 @@ int main() {
 
     return 0;
     }
-

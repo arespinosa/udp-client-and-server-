@@ -35,8 +35,7 @@ int main()  {
     // 1. Creating socket with AF_INET + Datagram 
     server_fd = socket(AF_INET, SOCK_DGRAM, 0);
     
-    if (server_fd == -1)
-    {
+    if (server_fd < 0) {
         perror("Socket failed");
         exit(EXIT_FAILURE);
     }
@@ -59,6 +58,7 @@ int main()  {
     */
     double count = 0.0;
     double total = 0.0;
+    int i = 0;
 
     while(indefinitely) {
 
@@ -74,35 +74,45 @@ int main()  {
 
         //If we have finished sending all packets from client, breaking while loop
         if(packet.seq_num == -1){
-            indefinitely = 0;
-            break;
+            
+            // Once we are done with the all of the packets from the client, will print the average OWD
+            if (count > 0) {
+                printf("Average OWD: %.3f s\n", total / count);
+                total = 0.0;
+                count = 0.0;
+                i = 0;
+            } else {
+                printf("No packets received.\n");
+            }
+
+        }
+        else {
+            if(packet.seq_num != i) {
+                printf("Packet %d was lost", i);
+                exit(EXIT_FAILURE);
+
+            }
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            microseconds = tv.tv_usec / 1000000.00;
+            double timeReceived = tv.tv_sec + microseconds;                     
+            // Computing the one-way delay 
+            
+            double OWD = (timeReceived - packet.time_stamp) * 1000;
+            printf("Current seq number %d \n", packet.seq_num);
+            printf("One way delay for packet : %.3f ms\n", OWD);
+            printf("-------------------------------------------- \n");
+
+        
+            count = count + 1.0;
+            total = total + OWD;
+            
+            // Echoing packet back to the client 
+            sendto(server_fd, &packet, sizeof(packet), 0, (struct sockaddr*)&clientAddress, clientLen);
+            i++;
         }
         
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        microseconds = tv.tv_usec / 1000000.00;
-        double timeReceived = tv.tv_sec + microseconds;                     
-        // Computing the one-way delay 
-        
-        double OWD = (timeReceived - packet.time_stamp) * 1000;
-        printf("Current seq number %d \n", packet.seq_num);
-        printf("One way delay for packet : %.3f ms\n", OWD);
-        printf("--------- \n");
 
-    
-        count = count + 1.0;
-        total = total + OWD;
-        
-        // Echoing packet back to the client 
-        sendto(server_fd, &packet, sizeof(packet), 0, (struct sockaddr*)&clientAddress, clientLen);
-    }
-
-
-    // Once we are done with the all of the packets from the client, will print the average OWD
-    if (count > 0) {
-        printf("Average OWD: %.3f s\n", total / count);
-    } else {
-        printf("No packets received.\n");
     }
 
     printf("Response sent to client\n");
