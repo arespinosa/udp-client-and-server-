@@ -90,9 +90,6 @@ int main() {
         packet.seq_num = i;
         packet.time_stamp = currentTime;
 
-        // Inter-packet delay 
-        sleep(seconds_Delay);
-
         // Sending packet
         sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen);
         // Receiving echo back from server
@@ -118,6 +115,9 @@ int main() {
         printf("Packet %d has RTT = %.3f ms\n", recievedPacket.seq_num, rtt);
         total_rtt += rtt;
         succ_packets += 1.0;
+
+        // Inter-packet delay 
+        sleep(seconds_Delay);
     }
 
     // Sending a packet with -1 to let the server know we are done sending N amount of packets and 
