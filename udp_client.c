@@ -38,7 +38,6 @@ int main() {
     double microseconds;
     double total_rtt = 0.0;
     double succ_packets = 0.0;
-
     /**
      * Accepting user input for:
      * N - # of Packets
@@ -48,21 +47,18 @@ int main() {
     */
     printf("Number of Packets to send: ");
     scanf("%d", &N);   
-    printf("N = %d \n", N);
 
     printf("Message size (in Bytes): ");
     scanf("%d", &B);
-    printf("Message Size = %d Bytes \n", B);
 
     printf("Inter-packet delay (in seconds): ");
     scanf("%d", &seconds_Delay);
-    printf("Inter-packet delay is %d seconds \n", seconds_Delay);
 
     printf("Enter the IP Address: ");
     scanf("%s", s_ipAddy);
-    printf("Server IP Address: %s \n", s_ipAddy);
 
     int packet_size = sizeof(struct packet_headers) + B;
+    char buffer[packet_size];
     
     // Create Socket with Af_Inet + Datagram 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -90,8 +86,13 @@ int main() {
         packet.seq_num = i;
         packet.time_stamp = currentTime;
 
+        // First copying the contents of the packet headers to the buffer
+        memcpy(buffer, &packet, sizeof(packet));
+        // Filling the rest of the buffer with 0 values
+        memset(buffer + sizeof(packet), '0', B);
+
         // Sending packet
-        sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen);
+        sendto(sockfd, buffer, packet_size, 0, (struct sockaddr *)&server_addr, addrlen);
         // Receiving echo back from server
         int n = recvfrom(sockfd, &recievedPacket, sizeof(recievedPacket), 0, (struct sockaddr *)&server_addr, &AddrLen);
         
@@ -102,19 +103,19 @@ int main() {
 
         if(recievedPacket.seq_num != i){
             printf("Packet %d was lost", i);
-            succ_packets -= 1.0;
         }
+        else {
+            succ_packets += 1.0;
+            gettimeofday(&tv, NULL);
+            microseconds = tv.tv_usec / 1000000.00;
 
-        gettimeofday(&tv, NULL);
-        microseconds = tv.tv_usec / 1000000.00;
+            double recvTime = tv.tv_sec + microseconds;
+            // Calculating the round trip time and multiplying by 1000 to get it in the form of ms
+            double rtt = (recvTime - packet.time_stamp) * 1000.0;
 
-        double recvTime = tv.tv_sec + microseconds;
-        // Calculating the round trip time and multiplying by 1000 to get it in the form of ms
-        double rtt = (recvTime - packet.time_stamp) * 1000.0;
-
-        printf("Packet %d has RTT = %.3f ms\n", recievedPacket.seq_num, rtt);
-        total_rtt += rtt;
-        succ_packets += 1.0;
+            printf("Packet %d has RTT = %.3f ms\n", recievedPacket.seq_num, rtt);
+            total_rtt += rtt;
+        }
 
         // Inter-packet delay 
         sleep(seconds_Delay);

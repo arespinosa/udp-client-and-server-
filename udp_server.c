@@ -78,7 +78,7 @@ int main()  {
             exit(EXIT_FAILURE);
         }
 
-        // Dereferncing the buffer to grab seq num + timestamp
+        // Dereferencing the buffer to grab seq num + timestamp
         packet = *(struct packet_headers *)buffer;
 
         //If we have finished receiving all packets from client calculating average and resetting variables
