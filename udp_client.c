@@ -15,19 +15,30 @@ int main() {
         double time_stamp;
     };
 
+    /*struct sockaddr_in {
+    short sin_family; // e.g. AF_INET
+    unsigned short sin_port; // e.g. htons(3490)
+    struct in_addr sin_addr; // see struct in_addr, below
+    char sin_zero[8]; // zero this if you want to
+    }; */
     int sockfd;
     struct sockaddr_in server_addr;
     int addrlen = sizeof(server_addr);
     socklen_t AddrLen = sizeof(server_addr);
     struct packet_headers packet, recievedPacket;
+
+    // Input Variables we'll be getting from user 
     int N;
     int B;
     int seconds_Delay;
     char s_ipAddy[20]; 
     
+    // Will be used to extract time and compute RTT values
     struct timeval tv;
     double microseconds;
-    
+    double total_rtt = 0.0;
+    double succ_packets = 0.0;
+
     /**
      * Accepting user input for:
      * N - # of Packets
@@ -38,7 +49,6 @@ int main() {
     printf("Number of Packets to send: ");
     scanf("%d", &N);   
     printf("N = %d \n", N);
-
 
     printf("Message size (in Bytes): ");
     scanf("%d", &B);
@@ -53,12 +63,7 @@ int main() {
     printf("Server IP Address: %s \n", s_ipAddy);
 
     int packet_size = sizeof(struct packet_headers) + B;
-    char buffer[packet_size];
-
-   
-    // Filling the buffer with 0s and the byte size + packet headers size 
-    memset(buffer, 0, packet_size);
-
+    
     // Create Socket with Af_Inet + Datagram 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -76,8 +81,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    double total_rtt = 0.0;
-
     // Iterating through the amount of packets we're going to send 
     for (int i = 0; i < N; i++) {
         gettimeofday(&tv, NULL);
@@ -87,6 +90,7 @@ int main() {
         packet.seq_num = i;
         packet.time_stamp = currentTime;
 
+        // Inter-packet delay 
         sleep(seconds_Delay);
 
         // Sending packet
@@ -96,11 +100,12 @@ int main() {
         
         if (n < 0) {
             perror("recvfrom failed");
+            exit(EXIT_FAILURE);
         }
 
         if(recievedPacket.seq_num != i){
             printf("Packet %d was lost", i);
-            exit(EXIT_FAILURE);
+            succ_packets -= 1.0;
         }
 
         gettimeofday(&tv, NULL);
@@ -112,20 +117,26 @@ int main() {
 
         printf("Packet %d has RTT = %.3f ms\n", recievedPacket.seq_num, rtt);
         total_rtt += rtt;
+        succ_packets += 1.0;
     }
 
     // Sending a packet with -1 to let the server know we are done sending N amount of packets and 
     // allow the server to compute the avg. 
     packet.seq_num = -1;
 
-    sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen);
+    if(sendto(sockfd, &packet, sizeof(packet), 0, (struct sockaddr *)&server_addr, addrlen) < 0){
+        perror("Send Failed");
+        exit(EXIT_FAILURE);
+    }
 
-    // After the end of the run, printing the average RTT 
+    // At the end of the run, computing the average RTT 
     double avg_rtt = total_rtt / N;
-    printf("Average RTT after %d runs is: %.3f", N, avg_rtt);        
-            
-    close(sockfd);
+    double lost_packets = N - succ_packets;
+    printf("Average RTT: %.3f \n", avg_rtt);       
+    printf("Packet Loss Percentage: %.2f %% \n", lost_packets);
 
+    // Close socket            
+    close(sockfd);
 
     return 0;
     }

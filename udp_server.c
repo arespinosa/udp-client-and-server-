@@ -15,7 +15,7 @@ int main()  {
         double time_stamp;
     };
 
-    // server_fd is the server's 'listening' socket.
+    // server_fd is the server's listening socket.
     int server_fd;
 
     /*struct sockaddr_in {
@@ -29,9 +29,17 @@ int main()  {
     int addrLen = sizeof(serverAddress);
     socklen_t clientLen;
     struct packet_headers packet;
+    // Character array to serve as buffer to store received data 
     char buffer[1024] = {0};
+    // timeReceived will be used to see when we recieve the packet 
+    double timeReceived;
+    // tv is used to grab seconds + microseconds of time 
+    struct timeval tv;
+    // microseconds will be used for calculate RTT and OWD
     double microseconds;
-
+    double OWD;
+    double average_rtt;
+    double lost_packets = 0.0;
     // 1. Creating socket with AF_INET + Datagram 
     server_fd = socket(AF_INET, SOCK_DGRAM, 0);
     
@@ -52,13 +60,13 @@ int main()  {
 
     // Making the server run indefinitely to process multiple clients
     int indefinitely = 1; 
-    /**
-     * count will represent the amount of packets recieved 
-     * total will accumulate all of the owd
-    */
+    // count will represent the amount of packets recieved 
+    // total will accumulate all of the owd
     double count = 0.0;
     double total = 0.0;
     int i = 0;
+    double packet_lost = 0.0;
+    double loss_percentage;
 
     while(indefinitely) {
 
@@ -70,52 +78,56 @@ int main()  {
             exit(EXIT_FAILURE);
         }
 
-        struct packet_headers packet = *(struct packet_headers *)buffer;
+        // Dereferncing the buffer to grab seq num + timestamp
+        packet = *(struct packet_headers *)buffer;
 
-        //If we have finished sending all packets from client, breaking while loop
+        //If we have finished receiving all packets from client calculating average and resetting variables
         if(packet.seq_num == -1){
             
-            // Once we are done with the all of the packets from the client, will print the average OWD
             if (count > 0) {
-                printf("Average OWD: %.3f s\n", total / count);
+                average_rtt = total / count;
+                loss_percentage = lost_packets / count;
+                printf("Average OWD: %.3f s\n", average_rtt);
+                printf("Packet Loss Percentage: %.2f %% \n", loss_percentage);
+                // Resetting since while-loop is running indefinitely
                 total = 0.0;
                 count = 0.0;
                 i = 0;
+                lost_packets = 0.0;
             } else {
-                printf("No packets received.\n");
+                printf("No packets received. \n");
             }
 
         }
         else {
+            // In case we lose a packet
             if(packet.seq_num != i) {
                 printf("Packet %d was lost", i);
-                exit(EXIT_FAILURE);
-
+                lost_packets += 1.0;
             }
-            struct timeval tv;
+
             gettimeofday(&tv, NULL);
             microseconds = tv.tv_usec / 1000000.00;
-            double timeReceived = tv.tv_sec + microseconds;                     
-            // Computing the one-way delay 
-            
-            double OWD = (timeReceived - packet.time_stamp) * 1000;
+            timeReceived = tv.tv_sec + microseconds;                     
+            // Computing the one-way delay(Time Recieved - Time Sent)
+            OWD = (timeReceived - packet.time_stamp) * 1000;
             printf("Current seq number %d \n", packet.seq_num);
             printf("One way delay for packet : %.3f ms\n", OWD);
             printf("-------------------------------------------- \n");
 
-        
             count = count + 1.0;
             total = total + OWD;
             
             // Echoing packet back to the client 
-            sendto(server_fd, &packet, sizeof(packet), 0, (struct sockaddr*)&clientAddress, clientLen);
+            if(sendto(server_fd, &packet, sizeof(packet), 0, (struct sockaddr*)&clientAddress, clientLen) < 0){
+                perror("Send Failed");
+                exit(EXIT_FAILURE);
+                
+            };
             i++;
         }
-        
-
     }
 
-    printf("Response sent to client\n");
     // Close connection
     close(server_fd);
     return 0;
